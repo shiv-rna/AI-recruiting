@@ -9,6 +9,7 @@ on:
       - ".github/workflows/grotto-watch.yml"
       - "grotto_watch.py"
       - "grotto_probe.py"
+      - "grotto_browser_probe.py"
   workflow_dispatch:
 
 permissions:
@@ -29,5 +30,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Probe Parks Canada availability endpoints
-        run: python3 grotto_probe.py
+      - name: Install Playwright + Chromium
+        run: |
+          pip install --quiet playwright
+          python3 -m playwright install --with-deps chromium
+      - name: Browser probe (capture real availability API call)
+        run: python3 grotto_browser_probe.py
