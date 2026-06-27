@@ -1,0 +1,34 @@
+name: grotto-watch
+
+# PROBE MODE: a single verbose poll runs whenever this file is pushed, so we can
+# confirm a GitHub runner can reach reservation.pc.gc.ca and inspect the raw JSON.
+# Once the endpoint/parser is verified, the command is switched to the watch loop.
+on:
+  push:
+    paths:
+      - ".github/workflows/grotto-watch.yml"
+      - "grotto_watch.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10   # probe is quick; bumped to ~340 for the real watch
+    env:
+      GROTTO_DATE: "2026-06-28"
+      GROTTO_STOP_UTC: "2026-06-28T14:00:00"
+      GROTTO_MENTION: "shiv-rna"
+      NTFY_TOPIC: ""        # set to a private ntfy topic to get phone push
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Probe Parks Canada availability (single verbose poll)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 grotto_watch.py --once -v
