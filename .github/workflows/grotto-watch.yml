@@ -8,6 +8,7 @@ on:
     paths:
       - ".github/workflows/grotto-watch.yml"
       - "grotto_watch.py"
+      - "grotto_probe.py"
   workflow_dispatch:
 
 permissions:
@@ -28,7 +29,5 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Probe Parks Canada availability (single verbose poll)
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 grotto_watch.py --once -v
+      - name: Probe Parks Canada availability endpoints
+        run: python3 grotto_probe.py
