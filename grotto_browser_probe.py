@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Browser probe v7: from inside the authenticated page (cart + WAF cookies),
-replay the SPA's exact availability request with param variants to find one that
-returns real availability JSON. Run: xvfb-run -a python3 ...
+"""Browser probe v8: dump the FULL bodies of the 200 calls most likely to carry
+availability (/api/maps, resources), to find the signal the map paints.
+Run: xvfb-run -a python3 ...
 """
-import re
 from playwright.sync_api import sync_playwright
 try:
     from playwright_stealth import stealth_sync
@@ -17,10 +16,12 @@ URL = ("https://reservation.pc.gc.ca/create-booking/results"
     "&equipmentId=-32768&subEquipmentId=-32768&equipmentCapacity=1"
     "&filterData=%7B%7D&resourceLocationId=-2147483637")
 
-spa_avail_url = {"u": None}
-def on_request(req):
-    if "/api/availability/map" in req.url and spa_avail_url["u"] is None:
-        spa_avail_url["u"] = req.url
+bodies = {}
+def on_response(resp):
+    u = resp.url
+    if "/api/maps" in u or "/api/availability" in u or "/api/cart" == u.split("?")[0][-9:]:
+        try: bodies.setdefault(u, (resp.status, resp.text()[:6000]))
+        except Exception: pass
 
 def is_waf(page):
     try: return "waf" in (page.title() or "").lower()
@@ -32,7 +33,7 @@ with sync_playwright() as p:
         "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
         locale="en-CA", timezone_id="America/Toronto", viewport={"width":1366,"height":1400})
     page = ctx.new_page()
-    page.on("request", on_request)
+    page.on("response", on_response)
     if stealth_sync:
         try: stealth_sync(page)
         except Exception: pass
@@ -49,28 +50,9 @@ with sync_playwright() as p:
             el = page.get_by_text(label, exact=False)
             if el.count() > 0: el.first.click(timeout=3000); break
         except Exception: pass
-    page.wait_for_timeout(16000)
+    page.wait_for_timeout(18000)
 
-    base = spa_avail_url["u"]
-    print(f"SPA availability URL captured: {base}", flush=True)
-    candidates = []
-    if base:
-        candidates.append(("spa-exact", base))
-        candidates.append(("dailyTrue", re.sub(r"getDailyAvailability=\w+", "getDailyAvailability=true", base)))
-        candidates.append(("resourcedaily", base.replace("/availability/map", "/availability/resourcedailyavailability")))
-        candidates.append(("resourcedailyTrue", re.sub(r"getDailyAvailability=\w+","getDailyAvailability=true",
-                            base.replace("/availability/map","/availability/resourcedailyavailability"))))
-
-    js = """async (url) => {
-        try {
-            const r = await fetch(url, {headers: {'Accept':'application/json'}, credentials:'include'});
-            const t = await r.text();
-            return {status: r.status, body: t.slice(0, 2500)};
-        } catch(e) { return {status:'ERR', body: String(e)}; }
-    }"""
-    for name, u in candidates:
-        res = page.evaluate(js, u)
-        print(f"\n=== {name} -> HTTP {res['status']}", flush=True)
-        print(f"    URL: {u[:200]}", flush=True)
-        print(f"    BODY: {res['body']}", flush=True)
-    b.close()
+for u,(s,bd) in bodies.items():
+    tag = u.split("reservation.pc.gc.ca")[-1]
+    print(f"\n===== {s} {tag[:120]}", flush=True)
+    print(bd, flush=True)
