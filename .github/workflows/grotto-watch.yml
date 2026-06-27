@@ -36,3 +36,10 @@ jobs:
           python3 -m playwright install --with-deps chromium
       - name: Browser probe (capture real availability API call)
         run: python3 grotto_browser_probe.py
+      - name: Upload screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grotto-screenshot
+          path: grotto.png
+          if-no-files-found: ignore
